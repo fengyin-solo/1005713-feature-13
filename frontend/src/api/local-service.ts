@@ -30,6 +30,10 @@ export function listEntries(key: string, filters: Record<string, string> = {}): 
 
 export function runAction(key: string, id: number, action: string): ActionResult {
   const meta = moduleMeta(key)
+  // 动作统计有自己的逐级状态机、咬合校验与专责签字，禁止从通用动作旁路推进。
+  if (key === 'tripstat') {
+    return { ok: false, message: '动作统计状态推进须经统计专责签字，请走动作统计页面的专责入口' }
+  }
   const target = meta.actionTargets[action]
   if (!target) {
     return { ok: false, message: `${meta.entity}没有登记「${action}」这个动作` }

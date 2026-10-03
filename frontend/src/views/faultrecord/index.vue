@@ -24,6 +24,20 @@
       </span>
     </p>
 
+    <section v-if="pendingArchive.length" class="archive-box">
+      <h3>故障录波待归档清单</h3>
+      <p class="page-desc">下列录波由保护动作统计走到「已复核」后自动转入，归档后从清单消失。</p>
+      <ul class="archive-list">
+        <li v-for="item in pendingArchive" :key="String(item.id)">
+          <span class="archive-code">{{ item['录波编号'] }}</span>
+          <span>{{ item['故障线路'] }}</span>
+          <span class="muted">{{ item['故障时间'] }}</span>
+          <span class="muted">来源统计 {{ item['关联统计'] }}</span>
+          <button class="link" type="button" @click="archiveRow(item)">归档录波</button>
+        </li>
+      </ul>
+    </section>
+
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
@@ -79,6 +93,7 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { listRows } from '@/data/local-store'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('faultrecord')
@@ -99,6 +114,14 @@ const statusSummary = computed(() =>
   })),
 )
 
+// 由动作统计「已复核」驱动进来的待归档项：带关联统计编号且尚未归档。不受列表筛选影响。
+const pendingArchive = ref<EntryRow[]>([])
+
+function refreshPendingArchive() {
+  pendingArchive.value = listRows(meta.key).filter(
+    (row) => String(row['关联统计'] ?? '').trim() !== '' && String(row.status) !== '已归档',
+  )
+}
 function resetFilters() {
   filters.value = {}
   reload()
@@ -122,12 +145,17 @@ function runAction(action: string, row: EntryRow) {
   reload()
 }
 
+function archiveRow(row: EntryRow) {
+  runAction('归档录波', row)
+}
+
 function reload() {
   errorMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    refreshPendingArchive()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '故障录波列表读取失败'
   }
@@ -135,3 +163,18 @@ function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.archive-box {
+  background: #fff;
+  border: 1px solid #f5d393;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.archive-box h3 { margin: 0 0 4px; font-size: 14px; }
+.archive-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.archive-list li { display: flex; gap: 12px; align-items: center; font-size: 13px; }
+.archive-code { font-weight: 600; min-width: 110px; }
+.archive-list .muted { color: var(--muted); }
+</style>
